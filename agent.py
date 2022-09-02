@@ -36,14 +36,18 @@ class IdaStarSearchAgent(SearchAgent):
         self.visited = set()
         self.backpointers = {}
         self.travel_mode = False
+        self.depth = 1
+        self.num_beyond = 0
         return True
 
     def start(self, time, observations):
         """
         Called on the first move
         """
-        r = observations[0]
-        c = observations[1]
+        self.starting_r = observations[0]
+        self.starting_c = observations[1]
+        r = self.starting_r
+        c = self.starting_c
         self.f = self.heuristic(r, c)
         get_environment().mark_maze_green(r, c)
         return self.action_info.random()
@@ -62,48 +66,57 @@ class IdaStarSearchAgent(SearchAgent):
             back_stack.append((r,c))
         return self.backpointers[(r1, c1)]
     
+    def add_adj(self, observations):
+        r = observations[0]
+        c = observations[1]
+        dirs = [(2, (1, 0)), (3, (-1, 0)), (4, (0, 1)), (5, (0, -1))]
+        for d in dirs:
+            r_mod = r + d[1][0]
+            c_mod = c + d[1][1]
+            if observations[d[0]] == 0 and (r_mod,c_mod) not in self.visited:
+                self.visited.add((r_mod,c_mod))
+                #Is our get_distance working?
+                g = self.get_distance(r_mod, c_mod)
+                h = self.heuristic(r_mod, c_mod)
+                if g+h <= self.f and g <= self.depth:
+                    get_environment().mark_maze_green(r_mod, c_mod)
+                    #Is this adding correcrtly?
+                    heappush(self.queue, Cell(g + h, r_mod, c_mod))
+                    self.backpointers[(r_mod, c_mod)] = (r, c)
+                elif g+h > self.f and g <= self.depth:
+                    self.lowest_above = min(self.lowest_above, g+h)
+                    print("g+h: ", g+h)
+                elif g > self.depth:
+                    self.num_beyond += 1
+
     def act(self, time, observations, reward):
         """
         Called every time the agent needs to take an action
         """
-        dirs = [(2, (1, 0)), (3, (-1, 0)), (4, (0, 1)), (5, (0, -1))]
+        
+        self.add_adj(observations)
+        #When there are no more valid nodes at this depth, set f to the 
+        if not self.queue:
+            if self.num_beyond == 0:
+                self.f = self.lowest_above
+            else:
+                self.depth += 1
+            self.visited.clear()
+            self.num_beyond = 0
+            self.lowest_above = 999999999
+            get_environment().teleport(self, self.starting_r, self.starting_c)
+            return None
+        cell = heappop(self.queue)
         r = observations[0]
         c = observations[1]
-        get_environment().mark_maze_green(r, c)
-        for d in dirs:
-            r_mod = r
-            c_mod = c
-            r_mod += d[1][0]
-            c_mod += d[1][1]
-            if observations[d[0]] == 0 and (r_mod,c_mod) not in self.visited:
-                self.visited.add((r_mod,c_mod))
-                g = self.get_distance(r_mod, c_mod)
-                h = self.heuristic(r_mod, c_mod)
-                if g+h <= self.f:
-                    get_environment().mark_maze_green(r_mod, c_mod)
-                    heappush(self.queue, Cell(g + h, r_mod, c_mod))
-                    self.backpointers[(r_mod, c_mod)] = (r, c)
-                else:
-                    self.lowest_above = min(self.lowest_above, g+h)
-                    print("g+h: ", g+h)
-        
-        cell = self.queue[0]
-        h, r2, c2 = cell.h, cell.r, cell.c
-        if not self.travel_mode:
-            cell = heappop(self.queue)
+        r2, c2 = cell.r, cell.c
         dr = r2 - r
         dc = c2 - c
         action = get_action_index((dr, dc))
         if action is None:
-            self.travel_mode = True
             print(r2, c2)
-            next_move = self.get_next_step(r, c, r2, c2)
-            print(next_move)
-            dr = next_move[0] - r
-            dc = next_move[1] - c
-            action = get_action_index((dr, dc))
-        else:
-            self.travel_mode = False
+            #Are we allowed to teleport?
+            get_environment().teleport(self, r2, c2)
         
         return action
 
@@ -120,4 +133,3 @@ class IdaStarSearchAgent(SearchAgent):
         After one or more episodes, this agent can be disposed of
         """
         return True
-
