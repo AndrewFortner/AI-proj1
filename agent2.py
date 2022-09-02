@@ -49,7 +49,7 @@ class IdaStarSearchAgent(SearchAgent):
         r = self.starting_r
         c = self.starting_c
         self.f = self.heuristic(r, c)
-        self.visited.add(r, c)
+        self.visited.add((r, c))
         get_environment().mark_maze_green(r, c)
         return self.action_info.random()
 
@@ -80,11 +80,9 @@ class IdaStarSearchAgent(SearchAgent):
         r = observations[0]
         c = observations[1]
         dirs = [(2, (1, 0)), (3, (-1, 0)), (4, (0, 1)), (5, (0, -1))]
-        print("here",self.f)
         for d in dirs:
             r_mod = r + d[1][0]
             c_mod = c + d[1][1]
-            print("visited",self.visited)
             if observations[d[0]] == 0 and (r_mod,c_mod) not in self.visited:
                 self.visited.add((r_mod,c_mod))
                 self.backpointers[(r_mod, c_mod)] = (r,c)
@@ -100,10 +98,7 @@ class IdaStarSearchAgent(SearchAgent):
                     self.backpointers[(r_mod, c_mod)] = (r, c)
                 else:
                     self.backpointers.pop((r_mod, c_mod))
-                if g+h > self.f and g <= self.depth:
                     self.lowest_above = min(self.lowest_above, g+h)
-                if g > self.depth:
-                    self.num_beyond += 1
 
     def act(self, time, observations, reward):
         """
@@ -113,12 +108,8 @@ class IdaStarSearchAgent(SearchAgent):
         self.add_adj(observations)
         #When there are no more valid nodes at this depth, set f to the 
         if not self.queue:
-            if self.num_beyond == 0:
-                self.f = self.lowest_above
-            else:
-                self.depth += 1
+            self.f = self.lowest_above
             self.visited.clear()
-            self.num_beyond = 0
             self.lowest_above = 999999999
             get_environment().teleport(self, self.starting_r, self.starting_c)
             return None
@@ -148,3 +139,4 @@ class IdaStarSearchAgent(SearchAgent):
         After one or more episodes, this agent can be disposed of
         """
         return True
+
